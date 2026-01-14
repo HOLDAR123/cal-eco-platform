@@ -1,19 +1,24 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
-import React, { Fragment, useContext, useEffect, useState } from "react";
+import React, { Fragment, useContext, useEffect, useState, useCallback, useMemo, memo } from "react";
 import { useForm } from "react-hook-form";
 import { useLocation, useNavigate } from "react-router";
 import { urlToJson } from "../../services/common.service";
-import { putApi } from "../../services/axios.service";
+import { api } from "../../api";
 import { toast } from "react-toastify";
 import CustomModal from "../../UI/CustomModal";
 import { AuthContext, ActionTypes } from "../../contexts/AuthContext";
 
 type FormProps = {
   token: string;
-  closeModal: any;
+  closeModal: () => void;
 };
 
-const Form = ({ token, closeModal }: FormProps) => {
+interface ResetPasswordFormData {
+  newPassword: string;
+  confirmPassword: string;
+}
+
+const Form = memo(({ token, closeModal }: FormProps) => {
   const navigate = useNavigate();
 
   const {
@@ -21,56 +26,61 @@ const Form = ({ token, closeModal }: FormProps) => {
     handleSubmit,
     formState: { errors },
     getValues,
-  } = useForm();
+  } = useForm<ResetPasswordFormData>();
 
   const { updateAuthAction } = useContext(AuthContext);
 
   const [apiError, setApiError] = useState("");
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = useCallback(async (data: ResetPasswordFormData) => {
     try {
       setApiError("");
-      const result = await putApi(`/users/reset-password/${token}`, data);
-      toast.success(result.message || "Done");
+      const result = await api.put<{ success: boolean; message?: string }>(`/v1/users/reset-password/${token}`, data);
+      toast.success(result?.message || "Done");
       closeModal();
       navigate("/");
-    } catch (e: any) {
-      console.log("Error: ", e?.response?.data || e);
-      toast.error(e?.response?.data?.message || "Invalid or expired token!");
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { message?: string } } };
+      console.log("Error: ", error?.response?.data || e);
+      toast.error(error?.response?.data?.message || "Invalid or expired token!");
     }
-  };
+  }, [token, closeModal, navigate]);
 
-  const FORM_FIELDS = [
+  const passwordValidation = useMemo(() => ({
+    required: "Password is required",
+    minLength: {
+      value: 8,
+      message: "Password must be at least 8 characters long",
+    },
+  }), []);
+
+  const confirmPasswordValidation = useMemo(() => ({
+    required: "Confirm password is required",
+    validate: (value: string) =>
+      value === getValues("newPassword") || "Passwords do not match",
+  }), [getValues]);
+
+  const FORM_FIELDS = useMemo(() => [
     {
       type: "password",
       fieldName: "newPassword",
       label: "New Password",
-      validation: {
-        required: "Password is required",
-        minLength: {
-          value: 8,
-          message: "Password must be at least 8 characters long",
-        },
-      },
+      validation: passwordValidation,
     },
     {
       type: "password",
       fieldName: "confirmPassword",
       label: "Confirm Password",
-      validation: {
-        required: "Confirm password is required",
-        validate: (value: string) =>
-          value === getValues("newPassword") || "Passwords do not match",
-      },
+      validation: confirmPasswordValidation,
     },
-  ];
+  ], [passwordValidation, confirmPasswordValidation]);
 
-  const handleRedirectToLogin = (e: any) => {
+  const handleRedirectToLogin = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     closeModal();
     navigate("/");
     updateAuthAction(ActionTypes.Login);
-  };
+  }, [closeModal, navigate, updateAuthAction]);
 
   return (
     <div className="flex flex-col items-center p-4 border-2 border-solid shadow-lg w-full border-foreground-night-400 bg-custom-gradient bg-blend-hard-light rounded-xl">
@@ -88,23 +98,26 @@ const Form = ({ token, closeModal }: FormProps) => {
         onSubmit={handleSubmit(onSubmit)}
         noValidate
       >
-        {FORM_FIELDS.map((item, index: number) => (
-          <Fragment key={`reset-password-form-${index}`}>
-            <input
-              className={`flex w-full px-3 py-2 ${
-                index > 0 ? "mt-4" : ""
-              } text-white border rounded-lg focus:ring focus:ring-indigo-300 bg-foreground-night-100 border-foreground-night-400`}
-              type={item.type}
-              placeholder={item.label}
-              {...register(item.fieldName, item.validation)}
-            />
-            {item.fieldName in errors && (
-              <p className="mt-1 text-red-600 text-sm ml-1">
-                {errors[item.fieldName]?.message as string}
-              </p>
-            )}
-          </Fragment>
-        ))}
+        {FORM_FIELDS.map((item, index: number) => {
+          const fieldName = item.fieldName as keyof ResetPasswordFormData;
+          return (
+            <Fragment key={`reset-password-form-${index}`}>
+              <input
+                className={`flex w-full px-3 py-2 ${
+                  index > 0 ? "mt-4" : ""
+                } text-white border rounded-lg focus:ring focus:ring-indigo-300 bg-foreground-night-100 border-foreground-night-400`}
+                type={item.type}
+                placeholder={item.label}
+                {...register(fieldName, item.validation)}
+              />
+              {errors[fieldName] && (
+                <p className="mt-1 text-red-600 text-sm ml-1">
+                  {errors[fieldName]?.message as string}
+                </p>
+              )}
+            </Fragment>
+          );
+        })}
 
         <button
           className="flex items-center mt-4 justify-center self-stretch rounded-lg bg-primary-900-high-emphasis py-2 px-3 hover:bg-primary-900-medium-emphasis w-full text-white text-center font-inter text-lg font-semibold leading-[2.202rem]"
@@ -125,7 +138,9 @@ const Form = ({ token, closeModal }: FormProps) => {
       </p>
     </div>
   );
-};
+});
+
+Form.displayName = 'ResetPasswordForm';
 
 const ResetPassword = () => {
   const location = useLocation();

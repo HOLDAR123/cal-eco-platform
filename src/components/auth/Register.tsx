@@ -1,44 +1,66 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
-import React, { Fragment, useContext, useState } from "react";
+import React, { Fragment, useContext, useState, useCallback, useMemo, memo } from "react";
 import { useForm } from "react-hook-form";
 
 import { ReactComponent as GoogleButton } from "../../assets/images/GoogleButton.svg";
-import { postApi } from "../../services/axios.service";
-import { handleSignInWithGoogleClick } from "../../services/auth.service";
+import { useRegister } from "../../hooks/mutations";
+import { api } from "../../api";
 import useAuth from "../../hooks/useAuth";
 import { ActionTypes, AuthContext } from "../../contexts/AuthContext";
 
-const Register = () => {
+interface RegisterFormData {
+  email: string;
+  password: string;
+  termsAndConditions?: boolean;
+}
+
+const Register = memo(() => {
   const { toggleModal, updateAuthAction } = useContext(AuthContext);
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm();
+  } = useForm<RegisterFormData>();
 
   const { login } = useAuth();
+  const registerMutation = useRegister();
 
   const [apiError, setApiError] = useState("");
 
-  const handleRedirectToLogin = (e: any) => {
+  const handleRedirectToLogin = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     toggleModal();
     updateAuthAction(ActionTypes.Login);
-  };
+  }, [toggleModal, updateAuthAction]);
 
-  const onSubmit = async (data: any) => {
+  const handleSignInWithGoogleClick = useCallback(async () => {
+    try {
+      const response = await api.get<{ url: string }>("/v1/auth/google");
+      if (response && response.url) {
+        window.location.href = response.url;
+      }
+    } catch (error) {
+      console.error("Google sign in error:", error);
+    }
+  }, []);
+
+  const onSubmit = useCallback(async (data: RegisterFormData) => {
     try {
       setApiError("");
-      const result = await postApi("/auth", data);
-      login(result.data);
+      const result = await registerMutation.mutateAsync({
+        address: data.email,
+        signature: data.password,
+      });
+      login(result as unknown as { authToken: string; [key: string]: unknown });
       toggleModal();
-    } catch (e: any) {
-      console.log("Error: ", e?.response?.data || e);
-      setApiError(e?.response?.data?.message || "Invalid Credentials");
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { message?: string } } };
+      console.log("Error: ", error?.response?.data || e);
+      setApiError(error?.response?.data?.message || "Invalid Credentials");
     }
-  };
+  }, [registerMutation, login, toggleModal]);
 
-  const FORM_FIELDS = [
+  const FORM_FIELDS = useMemo(() => [
     {
       type: "text",
       fieldName: "firstName",
@@ -75,7 +97,7 @@ const Register = () => {
         },
       },
     },
-  ];
+  ], []);
 
   return (
     <div className="flex flex-col items-center p-4 border-2 border-solid shadow-lg w-full border-foreground-night-400 bg-custom-gradient bg-blend-hard-light rounded-xl">
@@ -112,23 +134,26 @@ const Register = () => {
         <></>
       )}
       <form className="w-full" onSubmit={handleSubmit(onSubmit)} noValidate>
-        {FORM_FIELDS.map((item, index: number) => (
-          <Fragment key={`register-form-${index}`}>
-            <input
-              className={`flex w-full px-3 py-2 ${
-                index > 0 ? "mt-4" : ""
-              } text-white border rounded-lg focus:ring focus:ring-indigo-300 bg-foreground-night-100 border-foreground-night-400`}
-              type={item.type}
-              placeholder={item.label}
-              {...register(item.fieldName, item.validation)}
-            />
-            {item.fieldName in errors && (
-              <p className="mt-1 text-red-600 text-sm ml-1">
-                {errors[item.fieldName]?.message as string}
-              </p>
-            )}
-          </Fragment>
-        ))}
+        {FORM_FIELDS.map((item, index: number) => {
+          const fieldName = item.fieldName as keyof RegisterFormData;
+          return (
+            <Fragment key={`register-form-${index}`}>
+              <input
+                className={`flex w-full px-3 py-2 ${
+                  index > 0 ? "mt-4" : ""
+                } text-white border rounded-lg focus:ring focus:ring-indigo-300 bg-foreground-night-100 border-foreground-night-400`}
+                type={item.type}
+                placeholder={item.label}
+                {...register(fieldName, item.validation)}
+              />
+              {errors[fieldName] && (
+                <p className="mt-1 text-red-600 text-sm ml-1">
+                  {errors[fieldName]?.message as string}
+                </p>
+              )}
+            </Fragment>
+          );
+        })}
 
         <label className="block my-4 text-base font-medium leading-8 text-gray-300 font-inter">
           <input
@@ -167,6 +192,8 @@ const Register = () => {
       </form>
     </div>
   );
-};
+});
+
+Register.displayName = 'Register';
 
 export default Register;

@@ -1,12 +1,17 @@
 import React from "react";
-
-import { getApi } from "../services/axios.service";
+import { api } from "../api";
+import { GoogleOAuthResponse } from "../api/auth/dto/auth.dto";
 
 const GoogleLogin = () => {
-
   const handleClick = async () => {
-    const response = await getApi("/users/google");
-    window.location.href = response.url;
+    try {
+      const response = await api.get<GoogleOAuthResponse>("/v1/auth/google");
+      if (response && response.url) {
+        window.location.href = response.url;
+      }
+    } catch (error) {
+      console.error("Google login error:", error);
+    }
   };
   return (
     <div>

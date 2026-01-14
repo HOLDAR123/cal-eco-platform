@@ -1,12 +1,13 @@
 import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { urlToJson } from "../services/common.service";
-import { postApi } from "../services/axios.service";
+import { useRegister } from "../hooks/mutations";
 import useAuth from "../hooks/useAuth";
 import { toast } from "react-toastify";
 
 const GoogleRedirect = () => {
   const { login } = useAuth();
+  const registerMutation = useRegister();
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -15,16 +16,20 @@ const GoogleRedirect = () => {
     (async () => {
       try {
         const payload = urlToJson(location.search);
-        const response = await postApi("/auth/google/auth", payload);
-        login(response.data);
+        const response = await registerMutation.mutateAsync({
+          address: payload.email || '',
+          signature: payload.token || '',
+        });
+        login(response as unknown as { authToken: string; [key: string]: unknown });
         navigate("/");
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const error = e as { response?: { data?: { message?: string } } };
         console.log(e);
-        toast.error(e?.response?.data?.message || "Something went wrong!");
+        toast.error(error?.response?.data?.message || "Something went wrong!");
         navigate("/");
       }
     })();
-  }, [location.search, login, navigate]);
+  }, [location.search, login, navigate, registerMutation]);
 
   return <div>Hello World redirect</div>;
 };

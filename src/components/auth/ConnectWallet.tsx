@@ -44,28 +44,35 @@ const ConnectWallet: React.FC<ConnectModalProps> = ({
     };
   }, [isModalOpen, setIsModalOpen]);
   const activateConnector = async (label: string) => {
-    switch (label) {
-      case "MetaMask":
-        await metaMask.activate();
-        setSelectedWallet(label);
-        window.localStorage.setItem("connectorId", "injected");
-        break;
+    try {
+      switch (label) {
+        case "MetaMask":
+          await metaMask.activate();
+          setSelectedWallet(label);
+          window.localStorage.setItem("connectorId", "injected");
+          break;
 
-      case "WalletConnect":
-        await walletConnect.activate();
-        setSelectedWallet(label);
-        window.localStorage.setItem("connectorId", "wallet_connect");
-        break;
+        case "WalletConnect":
+          await walletConnect.activate();
+          setSelectedWallet(label);
+          window.localStorage.setItem("connectorId", "wallet_connect");
+          break;
 
-      case "Coinbase":
-        await coinbaseWallet.activate();
-        setSelectedWallet(label);
-        window.localStorage.setItem("connectorId", "injected");
+        case "Coinbase":
+          await coinbaseWallet.activate();
+          setSelectedWallet(label);
+          window.localStorage.setItem("connectorId", "injected");
+          break;
 
-        break;
-
-      default:
-        break;
+        default:
+          break;
+      }
+    } catch (error: unknown) {
+      console.error(`Error connecting ${label}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage && errorMessage !== "User closed modal" && errorMessage !== "User rejected") {
+        alert(`Failed to connect ${label}: ${errorMessage}`);
+      }
     }
   };
   return (
@@ -117,11 +124,15 @@ const ConnectWallet: React.FC<ConnectModalProps> = ({
                   </button>
                   <button
                     type="button"
-                    className="flex items-center gap-4 w-full rounded-lg border border-gray-600 p-3 text-left hover:border-gray-500 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 active:opacity-90"
+                    onClick={() => {
+                      alert("Phantom wallet is not supported. Please use MetaMask, WalletConnect, or Coinbase Wallet.");
+                    }}
+                    className="flex items-center gap-4 w-full rounded-lg border border-gray-600 p-3 text-left hover:border-gray-500 hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 active:opacity-90 opacity-50 cursor-not-allowed"
+                    disabled
                   >
                     <img src={Phantom} alt="Phantom" />
                     <span className="px-2 text-lg font-semibold text-white font-inter">
-                      Continue with Phantom
+                      Continue with Phantom (Not Supported)
                     </span>
                   </button>
                   <button

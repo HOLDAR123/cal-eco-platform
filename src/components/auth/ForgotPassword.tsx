@@ -1,39 +1,52 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useCallback, useMemo, memo } from "react";
 import { useForm } from "react-hook-form";
-import { postApi } from "../../services/axios.service";
+import { api } from "../../api";
 import { toast } from "react-toastify";
 import { ActionTypes, AuthContext } from "../../contexts/AuthContext";
 
-const ForgotPassword = () => {
+interface ForgotPasswordFormData {
+  email: string;
+}
+
+const ForgotPassword = memo(() => {
   const { toggleModal, updateAuthAction } = useContext(AuthContext);
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm();
+  } = useForm<ForgotPasswordFormData>();
 
   const [apiError, setApiError] = useState("");
 
-  const handleRedirectToLogin = (e: any) => {
+  const handleRedirectToLogin = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     toggleModal();
     updateAuthAction(ActionTypes.Login);
-  };
+  }, [toggleModal, updateAuthAction]);
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = useCallback(async (data: ForgotPasswordFormData) => {
     try {
       setApiError("");
-      const result = await postApi("/users/forgot-password", data);
+      const result = await api.post<{ success: boolean; message?: string }>("/v1/users/forgot-password", data);
       toast.success(
         result.message || "Link has been sent to this email address"
       );
       toggleModal();
-    } catch (e: any) {
-      console.log("Error: ", e?.response?.data || e);
-      setApiError(e?.response?.data?.message || "Invalid Credentials");
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { message?: string } } };
+      console.log("Error: ", error?.response?.data || e);
+      setApiError(error?.response?.data?.message || "Invalid Credentials");
     }
-  };
+  }, [toggleModal]);
+
+  const emailValidation = useMemo(() => ({
+    required: "Email is required",
+    pattern: {
+      value: /^\S+@\S+$/i,
+      message: "Invalid email format",
+    },
+  }), []);
 
   return (
     <div className="flex flex-col items-center p-4 border-2 border-solid shadow-lg w-full border-foreground-night-400 bg-custom-gradient bg-blend-hard-light rounded-xl">
@@ -55,13 +68,7 @@ const ForgotPassword = () => {
           className="flex w-full px-3 py-2 text-white border rounded-lg focus:ring focus:ring-indigo-300 bg-foreground-night-100 border-foreground-night-400"
           type="email"
           placeholder="Email Address"
-          {...register("email", {
-            required: "Email is required",
-            pattern: {
-              value: /^\S+@\S+$/i,
-              message: "Invalid email format",
-            },
-          })}
+          {...register("email", emailValidation)}
         />
         {errors.email && (
           <p className="mt-1 ml-1 text-sm text-red-600">
@@ -87,6 +94,8 @@ const ForgotPassword = () => {
       </p>
     </div>
   );
-};
+});
+
+ForgotPassword.displayName = 'ForgotPassword';
 
 export default ForgotPassword;

@@ -8,6 +8,7 @@ import { getEllipsisTxt } from "../../../utils/formatters";
 import ConnectModal from "./ConnectModal";
 import DisconnectModal from "./DisconnectModal";
 import MotionButton from "../../../UI/MotionButton";
+import { useWalletAuth } from "../../../hooks/useWalletAuth";
 
 const BUTTON_STYLE: React.CSSProperties = {
   background: "transparent",
@@ -26,6 +27,7 @@ interface WantedChain {
 
 const ConnectAccount: React.FC<WantedChain> = () => {
   const { account } = useWeb3React();
+  useWalletAuth();
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [anchorEl, setAnchorEl] = React.useState<HTMLButtonElement | null>(
@@ -44,16 +46,16 @@ const ConnectAccount: React.FC<WantedChain> = () => {
     };
 
     if (selectedWallet) {
-      const connector: any = connectorMapping[selectedWallet];
+      const connector = connectorMapping[selectedWallet];
       handleClose();
       setIsAuthModalOpen(false);
       localStorage.removeItem("connectorId");
-      if (connector.deactivate) {
+      if (connector && 'deactivate' in connector && typeof connector.deactivate === 'function') {
         connector.deactivate();
-      } else {
+      } else if (connector && 'resetState' in connector && typeof connector.resetState === 'function') {
         connector.resetState();
       }
-      if (connector && connector.close) {
+      if (connector && 'close' in connector && typeof connector.close === 'function') {
         await connector.close();
       }
     }

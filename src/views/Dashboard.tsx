@@ -88,10 +88,15 @@ const Dashboard: React.FC<{}> = () => {
 
   const cardsContainer = useRef<HTMLDivElement>(null);
 
+  interface EpochInfo {
+    epoch: number | string;
+    [key: string]: unknown;
+  }
+
   const getRoundsData = useCallback(
-    (epochArray: any[]) =>
+    (epochArray: EpochInfo[]) =>
       Promise.all(
-        epochArray.map(async (epochInfo: any) => {
+        epochArray.map(async (epochInfo: EpochInfo) => {
           const epochDetails = await getEpochDetails(
             lumanagiPredictionV1Contract as Contract,
             BigNumber.from(epochInfo.epoch)
@@ -108,28 +113,28 @@ const Dashboard: React.FC<{}> = () => {
   const setDisplayData = useCallback(async (selectedEpoch: number) => {
     const epochIds = [];
     const tempRounds = [];
-    const prevData: any = {};
+    const prevData: Record<string | number, unknown> = {};
     if (rounds.length > 0) {
       rounds.forEach((round) => {
         prevData[round.epoch] = { ...round };
       });
     }
     for (let index = PREVIOUS_ROUNDS + 1; index > 0; index--) {
+      const prevRoundData = prevData[selectedEpoch - index];
       tempRounds.push({
-        ...(prevData[selectedEpoch - index]
-          ? prevData[selectedEpoch - index]
-          : {}),
+        ...(prevRoundData && typeof prevRoundData === 'object' ? prevRoundData as Record<string, unknown> : {}),
         live: true,
         active: false,
         epoch: selectedEpoch - index,
       });
     }
     epochIds.push(selectedEpoch);
+    const currentRoundData = prevData[selectedEpoch];
     tempRounds.push({
       live: true,
       active: true,
       epoch: selectedEpoch,
-      ...(prevData[selectedEpoch] ? prevData[selectedEpoch] : {}),
+      ...(currentRoundData && typeof currentRoundData === 'object' ? currentRoundData as Record<string, unknown> : {}),
     });
     for (let index = 1; index <= NEXT_ROUNDS; index++) {
       epochIds.push(selectedEpoch + index);
@@ -321,10 +326,21 @@ const Dashboard: React.FC<{}> = () => {
     const betBearEvent = lumanagiPredictionV1ContractSocket.events.BetBear();
     const betBullEvent = lumanagiPredictionV1ContractSocket.events.BetBull();
 
-    const startHandler = (event: any) =>
-      startRoundCallback(event.returnValues.epoch);
-    const betHandler = (event: any) =>
-      handleBetEvent(event.returnValues.epoch);
+    interface ContractEvent {
+      returnValues: {
+        epoch: number | string;
+        [key: string]: unknown;
+      };
+    }
+
+    const startHandler = (event: ContractEvent) =>
+      startRoundCallback(String(event.returnValues.epoch));
+    const betHandler = (event: ContractEvent) => {
+      const epoch = typeof event.returnValues.epoch === 'number' 
+        ? event.returnValues.epoch 
+        : parseInt(String(event.returnValues.epoch), 10);
+      handleBetEvent(BigNumber.from(epoch));
+    };
 
     startRoundEvent.on("data", startHandler);
     betBearEvent.on("data", betHandler);

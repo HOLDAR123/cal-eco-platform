@@ -7,12 +7,12 @@ import ChangePassword from "../components/auth/Change Password";
 
 export type AuthContextType = {
   user: IUser | null;
-  setUser: any;
+  setUser: (user: IUser | null) => void;
   isAuthenticated: boolean;
-  setIsAuthenticated: any;
-  toggleModal: any;
-  setAuthAction: any;
-  updateAuthAction: any;
+  setIsAuthenticated: (isAuthenticated: boolean) => void;
+  toggleModal: (status?: boolean | null) => void;
+  setAuthAction: (action: AuthActionType | null) => void;
+  updateAuthAction: (inputAction: string) => void;
 };
 
 export const AuthContext = createContext<AuthContextType>({
@@ -66,7 +66,11 @@ export type IUser = {
   intro?: string;
 };
 
-const AuthContextProvider = ({ children }: any) => {
+interface AuthContextProviderProps {
+  children: React.ReactNode;
+}
+
+const AuthContextProvider = ({ children }: AuthContextProviderProps) => {
   const [showModal, setShowModal] = useState(false);
   const [authAction, setAuthAction] = useState<AuthActionType | null>(null);
   const [user, setUser] = useState<IUser | null>(null);

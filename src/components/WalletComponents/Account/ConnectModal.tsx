@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useCallback, useMemo, memo } from "react";
 
 import coinbase_Logo from "../../assets/coinbase_Logo.png";
 import metamask_Logo from "../../assets/svg/metamask_Logo.svg";
@@ -19,27 +19,32 @@ interface ConnectModalProps {
   >;
 }
 
-const ConnectModal: React.FC<ConnectModalProps> = ({
+const ConnectModal: React.FC<ConnectModalProps> = memo(({
   isModalOpen,
   setIsModalOpen,
   setSelectedWallet,
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  const handleClose = useCallback(() => {
+    setIsModalOpen(false);
+  }, [setIsModalOpen]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape") handleClose();
+  }, [handleClose]);
+
   useEffect(() => {
     if (!isModalOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsModalOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", handleKeyDown);
     const id = window.setTimeout(() => dialogRef.current?.focus(), 0);
     return () => {
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", handleKeyDown);
       window.clearTimeout(id);
     };
-  }, [isModalOpen, setIsModalOpen]);
+  }, [isModalOpen, handleKeyDown]);
 
-  const activateConnector = async (label: string) => {
+  const activateConnector = useCallback(async (label: string) => {
     try {
       switch (label) {
         case "MetaMask":
@@ -63,10 +68,11 @@ const ConnectModal: React.FC<ConnectModalProps> = ({
         default:
           break;
       }
-    } catch (error: any) {
-      if (error && error.message !== "User closed modal") {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage && errorMessage !== "User closed modal") {
         enqueueSnackbar(
-          error && error.message ? error.message : "Something went wrong",
+          errorMessage || "Something went wrong",
           {
             variant: "warning",
             autoHideDuration: 3000,
@@ -76,20 +82,28 @@ const ConnectModal: React.FC<ConnectModalProps> = ({
     } finally {
       setIsModalOpen(false);
     }
-  };
-  return (
-    <>
-      {isModalOpen && (
+  }, [setSelectedWallet, setIsModalOpen]);
+
+  const walletButtons = useMemo(() => [
+    { label: "MetaMask", image: metamask_Logo },
+    { label: "WalletConnect", image: walletconnect_Logo },
+    { label: "Coinbase Wallet", image: coinbase_Logo },
+  ], []);
+
+  const modalContent = useMemo(() => {
+    if (!isModalOpen) return null;
+
+    return (
+      <div
+        className="fixed inset-0 z-50"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="connect-your-wallet-title"
+      >
         <div
-          className="fixed inset-0 z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="connect-your-wallet-title"
-        >
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setIsModalOpen(false)}
-          />
+          className="absolute inset-0 bg-black/60"
+          onClick={handleClose}
+        />
           <div className="fixed inset-0 flex items-center justify-center p-4">
             <div
               ref={dialogRef}
@@ -106,7 +120,7 @@ const ConnectModal: React.FC<ConnectModalProps> = ({
                 </h2>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleClose}
                   className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
                   aria-label="Close"
                 >
@@ -131,21 +145,14 @@ const ConnectModal: React.FC<ConnectModalProps> = ({
               <div className="mb-4 h-1 w-16 rounded bg-[#00FFF8]" />
 
               <div className="flex flex-col items-center">
-                <ConnectButton
-                  label="MetaMask"
-                  image={metamask_Logo}
-                  onClick={() => activateConnector("MetaMask")}
-                />
-                <ConnectButton
-                  label="WalletConnect"
-                  image={walletconnect_Logo}
-                  onClick={() => activateConnector("WalletConnect")}
-                />
-                <ConnectButton
-                  label="Coinbase Wallet"
-                  image={coinbase_Logo}
-                  onClick={() => activateConnector("Coinbase Wallet")}
-                />
+                {walletButtons.map((wallet) => (
+                  <ConnectButton
+                    key={wallet.label}
+                    label={wallet.label}
+                    image={wallet.image}
+                    onClick={() => activateConnector(wallet.label)}
+                  />
+                ))}
               </div>
 
               <div className="mt-4 text-center text-white">
@@ -170,9 +177,12 @@ const ConnectModal: React.FC<ConnectModalProps> = ({
             </div>
           </div>
         </div>
-      )}
-    </>
-  );
-};
+      );
+  }, [isModalOpen, handleClose, walletButtons, activateConnector]);
+
+  return <>{modalContent}</>;
+});
+
+ConnectModal.displayName = 'ConnectModal';
 
 export default ConnectModal;

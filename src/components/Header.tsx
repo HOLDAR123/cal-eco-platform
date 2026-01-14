@@ -7,6 +7,7 @@ import Button from "../UI/Button";
 import { useWeb3React } from "@web3-react/core";
 import ConnectWallet from "./auth/ConnectWallet";
 import { AuthContext, ActionTypes } from "../contexts/AuthContext";
+import { useWalletAuth } from "../hooks/useWalletAuth";
 // const style = {
 //   position: "absolute" as "absolute",
 //   top: "50%",
@@ -19,6 +20,7 @@ import { AuthContext, ActionTypes } from "../contexts/AuthContext";
 export function Header() {
   const { updateAuthAction, isAuthenticated } = useContext(AuthContext);
   const { account } = useWeb3React();
+  useWalletAuth();
 
   const handleLogin = () => {
     updateAuthAction(ActionTypes.Login);

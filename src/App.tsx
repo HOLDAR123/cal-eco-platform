@@ -18,7 +18,12 @@ function App() {
     <MetmaskContextProvider>
       <AuthContextProvider>
         <div className="absolute w-screen" id="dashboard">
-          <BrowserRouter>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <Routers />
           </BrowserRouter>
         </div>

@@ -217,7 +217,7 @@ const ExchangeDashboard: React.FC = () => {
                     borderRadius: "8px",
                     color: "#fff",
                   }}
-                  formatter={(value: any) => formatCurrency(value)}
+                  formatter={(value: number | string) => formatCurrency(typeof value === 'number' ? value : parseFloat(String(value)) || 0)}
                 />
                 {selectedTokens.includes("BTC") && (
                   <Line

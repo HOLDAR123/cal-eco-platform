@@ -1,46 +1,89 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useCallback, useMemo, memo } from "react";
 import { useForm } from "react-hook-form";
 
 import { ReactComponent as GoogleButton } from "../../assets/images/GoogleButton.svg";
-import { postApi } from "../../services/axios.service";
-import { handleSignInWithGoogleClick } from "../../services/auth.service";
+import { useLogin } from "../../hooks/mutations";
+import { api } from "../../api";
 import useAuth from "../../hooks/useAuth";
 import { ActionTypes, AuthContext } from "../../contexts/AuthContext";
+import { GoogleOAuthResponse } from "../../api/auth/dto/auth.dto";
 
-const Login = () => {
+interface LoginFormData {
+  email: string;
+  password: string;
+  termsAndConditions?: boolean;
+}
+
+const Login = memo(() => {
   const { updateAuthAction, toggleModal } = useContext(AuthContext);
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm();
+  } = useForm<LoginFormData>();
 
   const { login } = useAuth();
+  const loginMutation = useLogin();
 
   const [apiError, setApiError] = useState("");
 
-  const handleRedirectToRegister = (e: any) => {
+  const handleRedirectToRegister = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     toggleModal();
     updateAuthAction(ActionTypes.Register);
-  };
+  }, [toggleModal, updateAuthAction]);
 
-  const handleRedirectToForgotPassword = () => {
+  const handleRedirectToForgotPassword = useCallback(() => {
     updateAuthAction(ActionTypes.ForgotPassword);
-  };
+  }, [updateAuthAction]);
 
-  const onSubmit = async (data: any) => {
+  const handleSignInWithGoogleClick = useCallback(async () => {
+    try {
+      const response = await api.get<GoogleOAuthResponse>("/v1/auth/google");
+      if (response && response.url) {
+        window.location.href = response.url;
+      }
+    } catch (error) {
+      console.error("Google sign in error:", error);
+    }
+  }, []);
+
+  const onSubmit = useCallback(async (data: LoginFormData) => {
     try {
       setApiError("");
-      const result = await postApi("/auth/login", data);
-      login(result.data);
+      const result = await loginMutation.mutateAsync({
+        address: data.email,
+        signature: data.password,
+      });
+      login(result as unknown as { authToken: string; [key: string]: unknown });
       toggleModal();
-    } catch (e: any) {
-      console.log("Error: ", e?.response?.data || e);
-      setApiError(e?.response?.data?.message || "Invalid Credentials");
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: { message?: string } } };
+      console.log("Error: ", error?.response?.data || e);
+      setApiError(error?.response?.data?.message || "Invalid Credentials");
     }
-  };
+  }, [loginMutation, login, toggleModal]);
+
+  const emailValidation = useMemo(() => ({
+    required: "Email is required",
+    pattern: {
+      value: /^\S+@\S+$/i,
+      message: "Invalid email format",
+    },
+  }), []);
+
+  const passwordValidation = useMemo(() => ({
+    required: "Password is required",
+    minLength: {
+      value: 8,
+      message: "Password must be at least 8 characters long",
+    },
+  }), []);
+
+  const termsValidation = useMemo(() => ({
+    required: "You must accept the terms and conditions",
+  }), []);
 
   return (
     <div className="flex flex-col items-center p-4 border-2 border-solid shadow-lg w-full border-foreground-night-400 bg-custom-gradient bg-blend-hard-light rounded-xl">
@@ -81,13 +124,7 @@ const Login = () => {
           className="flex w-full px-3 py-2 text-white border rounded-lg focus:ring focus:ring-indigo-300 bg-foreground-night-100 border-foreground-night-400"
           type="email"
           placeholder="Email"
-          {...register("email", {
-            required: "Email is required",
-            pattern: {
-              value: /^\S+@\S+$/i,
-              message: "Invalid email format",
-            },
-          })}
+          {...register("email", emailValidation)}
         />
         {errors.email && (
           <p className="mt-1 text-red-600 text-sm ml-1">
@@ -98,13 +135,7 @@ const Login = () => {
           className="flex w-full px-3 py-2 mt-4 text-white border rounded-lg focus:ring focus:ring-indigo-300 bg-foreground-night-100 border-foreground-night-400"
           type="password"
           placeholder="Password"
-          {...register("password", {
-            required: "Password is required",
-            minLength: {
-              value: 8,
-              message: "Password must be at least 8 characters long",
-            },
-          })}
+          {...register("password", passwordValidation)}
         />
         {errors.password && (
           <p className="mt-1 text-red-600 text-sm ml-1">
@@ -122,9 +153,7 @@ const Login = () => {
           <input
             type="checkbox"
             className="mr-2 border-2 border-solid rounded-lg border-foreground-night-400"
-            {...register("termsAndConditions", {
-              required: "You must accept the terms and conditions",
-            })}
+            {...register("termsAndConditions", termsValidation)}
           />
           I agree to CryptoHunt's Terms and Privacy Policy
           {errors.termsAndConditions && (
@@ -155,6 +184,8 @@ const Login = () => {
       </form>
     </div>
   );
-};
+});
+
+Login.displayName = 'Login';
 
 export default Login;

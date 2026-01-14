@@ -2,7 +2,9 @@ import React, { Fragment, useContext, useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form";
 
 import { ReactComponent as CopyIcon } from "../../assets/images/copy.svg";
-import { getApi, putApi } from "../../services/axios.service";
+import { api } from "../../api";
+import { useUpdateUser } from "../../hooks/mutations";
+import { useUserMe } from "../../hooks/queries";
 import useAuth from "../../hooks/useAuth";
 import { toast } from "react-toastify";
 import { ActionTypes, AuthContext } from "../../contexts/AuthContext";
@@ -12,17 +14,17 @@ type InputProps = {
   label: string;
   placeholder: string;
   name: string;
-  EndIcon?: any;
-  props?: any;
+  EndIcon?: React.ReactNode;
+  props?: Record<string, unknown>;
 };
 
 type ProfileImageProps = {
   label: string;
-  inputRef: any;
+  inputRef: React.RefObject<HTMLInputElement>;
   size?: string;
-  selectedImage: any;
-  setImage: any;
-  handleImageSelect: any;
+  selectedImage: File | null;
+  setImage: (image: File | null) => void;
+  handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>, type?: string) => void;
   type: string;
 };
 
@@ -32,7 +34,7 @@ type ButtonProps = {
   customClass?: string;
   isValid?: boolean;
   isLoading?: boolean;
-  onClick?: any;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 };
 
 const Button = ({
@@ -171,13 +173,15 @@ const Tags = ({ tags }: TagsProps) => {
 };
 
 const EditProfile = () => {
-  const { user, updateUserInfo } = useAuth();
+  const { user } = useAuth();
+  const { data: userData } = useUserMe();
+  const updateUserMutation = useUpdateUser();
   const { updateAuthAction } = useContext(AuthContext);
-  const profileImageInputRef: any = useRef(null);
-  const banner1InputRef: any = useRef(null);
+  const profileImageInputRef = useRef<HTMLInputElement>(null);
+  const banner1InputRef = useRef<HTMLInputElement>(null);
 
-  const [profileImage, setProfileImage] = useState<any>(null);
-  const [banner1, setBanner1] = useState<any>(null);
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [banner1, setBanner1] = useState<File | null>(null);
 
   const {
     register,
@@ -187,20 +191,31 @@ const EditProfile = () => {
     clearErrors,
     setValue,
     formState: { errors, isLoading, isSubmitting },
-  } = useForm();
+  } = useForm<EditProfileFormData>();
 
   const username = watch("username");
 
-  const handleImageSelect = (e: any, type = "profile") => {
-    const file = e.target.files[0];
-    if (type === "profile") setProfileImage(file);
-    else if (type === "banner1") setBanner1(file);
+  interface EditProfileFormData {
+    firstName: string;
+    lastName: string;
+    username: string;
+    intro?: string;
+    wallet_address?: string;
+  }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, type = "profile") => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (type === "profile") setProfileImage(file);
+      else if (type === "banner1") setBanner1(file);
+    }
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: EditProfileFormData) => {
     try {
-      await putApi("/users/", data);
-      await updateUserInfo();
+      await updateUserMutation.mutateAsync({
+        address: data.wallet_address,
+      });
       toast.success("Updated successfully");
     } catch (e: any) {
       console.log("Error: ", e?.response?.data || e);
@@ -210,10 +225,9 @@ const EditProfile = () => {
 
   const checkUsernameExists = async () => {
     try {
-      // Send a request to your API to check if the username already exists
-      const response = await getApi(`/users/exists/username/${username}`);
+      const response = await api.get<{ data: { exists: boolean } }>(`/users/exists/username/${username}`);
 
-      if (response.data.exists) {
+      if (response.data?.exists) {
         setError("username", {
           type: "validate",
           message: "Username already exists!",
@@ -225,7 +239,7 @@ const EditProfile = () => {
     } catch (error) {
       console.error("Error checking username:", error);
     }
-    return ""; // Return an empty string if no error
+    return "";
   };
 
   const FORM_FIELDS: InputProps[] = [
@@ -287,13 +301,15 @@ const EditProfile = () => {
   ];
 
   useEffect(() => {
-    if (user) {
-      setValue("firstName", user.firstName);
-      setValue("lastName", user.lastName);
-      setValue("username", user.username);
-      setValue("intro", user.intro);
+    const currentUser = userData || user;
+    if (currentUser) {
+      const user = currentUser as { firstName?: string; lastName?: string; username?: string; intro?: string };
+      setValue("firstName", user.firstName || '');
+      setValue("lastName", user.lastName || '');
+      setValue("username", user.username || '');
+      setValue("intro", user.intro || '');
     }
-  }, [user, setValue]);
+  }, [user, userData, setValue]);
 
   return (
     <>
